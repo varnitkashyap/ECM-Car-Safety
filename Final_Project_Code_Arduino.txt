@@ -1,0 +1,1072 @@
+#include <Kalman.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS.h>
+#include <Keypad.h>
+#include <Servo.h> 
+#include <Wire.h>
+#include<SPI.h>
+ 
+Servo myservo; 
+
+const byte ROWS = 4;
+const byte COLS = 3; 
+char keys[ROWS][COLS] = {
+    {'1','2','3'},
+    {'4','5','6'},
+    {'7','8','9'},
+    {'*','0','#'}
+};
+
+byte rowPins[ROWS] = {25, 26, 27, 28}; 
+byte colPins[COLS] = {22, 23, 24}; 
+Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+
+float gpslat, gpslon;
+
+TinyGPS gps;
+SoftwareSerial sgps(19,18);
+SoftwareSerial sgsm(17,16);
+ 
+
+#define OLED_RESET 4
+int Trigger1=4;
+int Trigger2=2;
+int Trigger3=6;
+int Trigger4=29;
+int Trigger5=31;
+int Trigger6=40;
+int Trigger7=42;
+int Trigger8=46;
+int echo1=5;
+int echo2=3;
+int echo3=7;
+int echo4=30;
+int echo5=33;
+int echo6=41;
+int echo7=43;
+int echo8=47;
+int brakes=12;
+#define sensorpin A0
+#define sensorpin1 A1
+#define sensorpin2 A2
+#define sensorpin3 A3
+int raspLeftIn=44;
+int raspRightIn=45;
+int raspLeftOut=35;
+int raspRightOut=34;
+int LeftIndicator=13;
+int RightIndicator=9;
+
+
+long duration1; 
+int dist1;
+long duration2; 
+int dist2;
+long duration3; 
+int dist3;
+long duration4; 
+int dist4;
+long duration5; 
+int dist5;
+long duration6; 
+int dist6;
+long duration7; 
+int dist7;
+long duration8; 
+int dist8;
+int acc1;
+int acc2;
+int acc;
+int GyroAngle;
+int KS;
+int PS;
+int PS1;
+int PS2;
+int PS3;
+char key;
+
+
+void setup() 
+{
+  Serial.begin(9600);
+  pinMode(Trigger1, OUTPUT); 
+  pinMode(echo1, INPUT);
+  pinMode(Trigger2, OUTPUT); 
+  pinMode(echo2, INPUT);
+  pinMode(Trigger3, OUTPUT); 
+  pinMode(echo3, INPUT);
+  pinMode(Trigger4, OUTPUT); 
+  pinMode(echo4, INPUT);
+  pinMode(Trigger5, OUTPUT); 
+  pinMode(echo5, INPUT);
+  pinMode(Trigger6, OUTPUT); 
+  pinMode(echo6, INPUT);
+  pinMode(Trigger7, OUTPUT); 
+  pinMode(echo7, INPUT);
+  pinMode(Trigger8, OUTPUT); 
+  pinMode(echo8, INPUT);
+  pinMode(sensorpin, INPUT);
+  pinMode(sensorpin1, INPUT);
+  pinMode(sensorpin2, INPUT);
+  pinMode(sensorpin3, INPUT);
+  pinMode(brakes,OUTPUT);
+  pinMode(raspLeftIn,INPUT);
+  pinMode(raspRightIn,INPUT);
+  pinMode(raspLeftOut,OUTPUT);
+  pinMode(raspRightOut,OUTPUT);
+  pinMode(LeftIndicator,OUTPUT);
+  pinMode(RightIndicator,OUTPUT);
+  myservo.attach(11); 
+  
+  sgsm.begin(9600);
+  sgps.begin(9600); 
+}
+void loop() 
+{
+ distance();
+ //distance between 4to 3 meter
+ if(dist1<400 && dist1>300 && dist2>400 && dist3>400) // front
+  {
+    Serial.println("Object 4 meter away from FRONT"); 
+    distance();
+    Serial.println("Enter Speed 1");
+    key = keypad.getKey();
+    acc1= key;
+    Serial.println("Enter Speed 2");
+    key = keypad.getKey();
+    acc2= key;
+    if( acc1>acc2 ) //speed decreasing
+    {
+      //do nothing
+    }
+    else if(acc1<acc2 || acc1==acc2)//speed increasing or constant
+    {
+     distance();
+     //distance between 3 to 2 meter
+     if(dist1<300 && dist1>200 && dist2>300 && dist3>300) //front
+      {
+       Serial.println("Object 3 meter away from FRONT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400) || (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+        {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400) || (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+          {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+          }
+         else if(dist5>400 && dist7>400)
+          {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+            {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+            }
+            myservo.write(93);
+          }
+        }
+       else if(dist4>400 && dist6>400)
+        {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+          {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+          }
+         myservo.write(93);
+        }
+      }
+     else if(dist1<300 && dist1>200 && dist2<300 && dist2>200 && dist3>400) //front-left
+     {
+       Serial.println("Object 3 meter away from FRONT LEFT");
+       Serial.println("Avoidance System Activated");
+       Serial.println("Object in left checking right");
+       check_left();
+       if(dist4<400)
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+        }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       }
+     }
+     else if(dist1<300 && dist1>300 && dist3<300 && dist3>200 && dist2>400) //front-right
+     {
+       Serial.println("Object 3 meter away from FRONT RIGHT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+       }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       } 
+      }
+      Serial.println("Enter Current Speed");
+      key = keypad.getKey();
+      acc= key;
+      if(acc=0)
+      {
+        //do nothing
+      }
+      else if(acc!=0)
+      {
+        distance();
+        if(dist1<200 && dist1>100 && dist2>200 && dist3>200)//front
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist2>200 && dist2>100 && dist3>200) //front-left
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist3>200 && dist3>100 && dist2>200) //front-right
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        distance();
+        if(dist1<100 && dist2>100 && dist3>100)
+        {
+          PS=digitalRead(sensorpin);
+          PS1=digitalRead(sensorpin1);
+          PS2=digitalRead(sensorpin2);
+          if( PS==1 || PS1==1 || PS2==1) //accidnet happened
+          {
+            Serial.println("Enter Gyro Angle");
+            char key = keypad.getKey();
+            GyroAngle= key;
+            if(GyroAngle > 45 && GyroAngle < 180)
+            {
+              digitalWrite(KS,HIGH);
+            }
+            ask_safe();
+          }
+          else if(PS==0 && PS1==0 && PS2==0)
+          {
+            ask_safe();
+          }
+        }
+      }
+    } 
+    else
+    {
+      //alert front 4meter
+      Serial.println("Object 4 meter away from FRONT");
+    }
+  }
+ else if(dist1<400 && dist1>300 && dist2<400 && dist2>300 &&dist3>400)
+  {
+
+    Serial.println("Object 4 meter away from FRONT-LEFT");
+    distance();
+    Serial.println("Enter Speed 1");
+    key = keypad.getKey();
+    acc1= key;
+    Serial.println("Enter Speed 2");
+    key = keypad.getKey();
+    acc2= key;
+    if( acc1>acc2 ) //speed decreasing
+    {
+      //do nothing
+    }
+    else if(acc1<acc2 || acc1==acc2)//speed increasing or constant
+    {
+     distance();
+     //distance between 3 to 2 meter
+     if(dist1<300 && dist1>200 && dist2>300 && dist3>300) //front
+      {
+       Serial.println("Object 3 meter away from FRONT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400) || (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+        {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400) || (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+          {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+          }
+         else if(dist5>400 && dist7>400)
+          {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+            {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+            }
+            myservo.write(93);
+          }
+        }
+       else if(dist4>400 && dist6>400)
+        {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+          {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+          }
+         myservo.write(93);
+        }
+      }
+     else if(dist1<300 && dist1>200 && dist2<300 && dist2>200 && dist3>400) //front-left
+     {
+       Serial.println("Object 3 meter away from FRONT LEFT");
+       Serial.println("Avoidance System Activated");
+       Serial.println("Object in left checking right");
+       check_left();
+       if(dist4<400)
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+        }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       }
+     }
+     else if(dist1<300 && dist1>300 && dist3<300 && dist3>200 && dist2>400) //front-right
+     {
+       Serial.println("Object 3 meter away from FRONT RIGHT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+       }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       } 
+      }
+      Serial.println("Enter Current Speed");
+      key = keypad.getKey();
+      acc= key;
+      if(acc=0)
+      {
+        //do nothing
+      }
+      else if(acc!=0)
+      {
+        distance();
+        if(dist1<200 && dist1>100 && dist2>200 && dist3>200)//front
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist2>200 && dist2>100 && dist3>200) //front-left
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist3>200 && dist3>100 && dist2>200) //front-right
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        distance();
+        if(dist1<100 && dist2>100 && dist3>100)
+        {
+          PS=digitalRead(sensorpin);
+          PS1=digitalRead(sensorpin1);
+          PS2=digitalRead(sensorpin2);
+          if( PS==1 || PS1==1 || PS2==1) //accidnet happened
+          {
+            Serial.println("Enter Gyro Angle");
+            char key = keypad.getKey();
+            GyroAngle= key;
+            if(GyroAngle > 45 && GyroAngle < 180)
+            {
+              digitalWrite(KS,HIGH);
+            }
+            ask_safe();
+          }
+          else if(PS==0 && PS1==0 && PS2==0)
+          {
+            ask_safe();
+          }
+        }
+      }
+    } 
+    else
+    {
+      //alert front 4meter
+      Serial.println("Object 4 meter away from FRONT");
+    }
+  } 
+ else if(dist1<400 && dist1>300 && dist3<400 && dist3>300 && dist2>400)
+  {
+    Serial.println("Object 4 meter away from FRONT-RIGHT");
+    distance();
+    Serial.println("Enter Speed 1");
+    key = keypad.getKey();
+    acc1= key;
+    Serial.println("Enter Speed 2");
+    key = keypad.getKey();
+    acc2= key;
+    if( acc1>acc2 ) //speed decreasing
+    {
+      //do nothing
+    }
+    else if(acc1<acc2 || acc1==acc2)//speed increasing or constant
+    {
+     distance();
+     //distance between 3 to 2 meter
+     if(dist1<300 && dist1>200 && dist2>300 && dist3>300) //front
+      {
+       Serial.println("Object 3 meter away from FRONT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+        {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+          {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+          }
+         else if(dist5>400 && dist7>400)
+          {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+            {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+            }
+            myservo.write(93);
+          }
+        }
+       else if(dist4>400 && dist6>400)
+        {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+          {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+          }
+         myservo.write(93);
+        }
+      }
+     else if(dist1<300 && dist1>200 && dist2<300 && dist2>200 && dist3>400) //front-left
+     {
+       Serial.println("Object 3 meter away from FRONT LEFT");
+       Serial.println("Avoidance System Activated");
+       Serial.println("Object in left checking right");
+       check_left();
+       if(dist4<400)
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+        }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       }
+     }
+     else if(dist1<300 && dist1>300 && dist3<300 && dist3>200 && dist2>400) //front-right
+     {
+       Serial.println("Object 3 meter away from FRONT RIGHT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+       }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       } 
+      }
+      Serial.println("Enter Current Speed");
+      key = keypad.getKey();
+      acc= key;
+      if(acc=0)
+      {
+        //do nothing
+      }
+      else if(acc!=0)
+      {
+        distance();
+        if(dist1<200 && dist1>100 && dist2>200 && dist3>200)//front
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist2>200 && dist2>100 && dist3>200) //front-left
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist3>200 && dist3>100 && dist2>200) //front-right
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        distance();
+        if(dist1<100 && dist2>100 && dist3>100)
+        {
+          PS=digitalRead(sensorpin);
+          PS1=digitalRead(sensorpin1);
+          PS2=digitalRead(sensorpin2);
+          if( PS==1 || PS1==1 || PS2==1) //accidnet happened
+          {
+            Serial.println("Enter Gyro Angle");
+            char key = keypad.getKey();
+            GyroAngle= key;
+            if(GyroAngle > 45 && GyroAngle < 180)
+            {
+              digitalWrite(KS,HIGH);
+            }
+            ask_safe();
+          }
+          else if(PS==0 && PS1==0 && PS2==0)
+          {
+            ask_safe();
+          }
+        }
+      }
+    } 
+    else
+    {
+      //alert front 4meter
+      Serial.println("Object 4 meter away from FRONT");
+    }
+  } 
+ else if(dist1<400 && dist1>300 && dist3<400 && dist3>300 && dist2<400 && dist2<300)
+ {
+    Serial.println("Object 4 meter away from FULL-FRONT");
+    distance();
+    Serial.println("Enter Speed 1");
+    key = keypad.getKey();
+    acc1= key;
+    Serial.println("Enter Speed 2");
+    key = keypad.getKey();
+    acc2= key;
+    if( acc1>acc2 ) //speed decreasing
+    {
+      //do nothing
+    }
+    else if(acc1<acc2 || acc1==acc2)//speed increasing or constant
+    {
+     distance();
+     //distance between 3 to 2 meter
+     if(dist1<300 && dist1>200 && dist2>300 && dist3>300) //front
+      {
+       Serial.println("Object 3 meter away from FRONT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+        {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+          {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+          }
+         else if(dist5>400 && dist7>400)
+          {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+            {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+            }
+            myservo.write(93);
+          }
+        }
+       else if(dist4>400 && dist6>400)
+        {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+          {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+          }
+         myservo.write(93);
+        }
+      }
+     else if(dist1<300 && dist1>200 && dist2<300 && dist2>200 && dist3>400) //front-left
+     {
+       Serial.println("Object 3 meter away from FRONT LEFT");
+       Serial.println("Avoidance System Activated");
+       Serial.println("Object in left checking right");
+       check_left();
+       if(dist4<400)
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+        }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       }
+     }
+     else if(dist1<300 && dist1>300 && dist3<300 && dist3>200 && dist2>400) //front-right
+     {
+       Serial.println("Object 3 meter away from FRONT RIGHT");
+       Serial.println("Avoidance System Activated");
+       check_left();
+       if((dist4<400 && dist6<400)|| (dist4>400 && dist6<400) || (dist4<400 && dist6>400))
+       {
+         Serial.println("Object in left checking right");
+         check_right();
+         if((dist5<400 && dist7<400)|| (dist5>400 && dist7<400) || (dist5<400 && dist7>400))
+         {
+           Serial.println("Object in left. Applying Brakes");
+           digitalWrite(brakes,HIGH);
+         }
+         else if(dist5>400 && dist7>400)
+         {
+           Serial.println("Turning Right");
+           digitalWrite(raspRightOut,HIGH);
+           while(digitalRead(raspRightIn)==HIGH)
+           {
+             myservo.write(68);
+             digitalWrite(RightIndicator,HIGH);
+           }
+           myservo.write(93);
+         }
+       }
+       else if(dist4>400 && dist6>400)
+       {
+         Serial.println("Turning Left");
+         digitalWrite(raspLeftOut,HIGH);
+         while(digitalRead(raspLeftIn)==HIGH)
+         {
+           myservo.write(117);
+           digitalWrite(LeftIndicator,HIGH);
+         }
+         myservo.write(93);
+       } 
+      }
+      Serial.println("Enter Current Speed");
+      key = keypad.getKey();
+      acc= key;
+      if(acc=0)
+      {
+        //do nothing
+      }
+      else if(acc!=0)
+      {
+        distance();
+        if(dist1<200 && dist1>100 && dist2>200 && dist3>200)//front
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist2>200 && dist2>100 && dist3>200) //front-left
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        else if(dist1<200 && dist1>100 && dist3>200 && dist3>100 && dist2>200) //front-right
+        {
+          digitalWrite(brakes,HIGH);
+          //apply brakes
+        }
+        distance();
+        if(dist1<100 && dist2>100 && dist3>100)
+        {
+          PS=digitalRead(sensorpin);
+          PS1=digitalRead(sensorpin1);
+          PS2=digitalRead(sensorpin2);
+          if( PS==1 || PS1==1 || PS2==1) //accidnet happened
+          {
+            Serial.println("Enter Gyro Angle");
+            char key = keypad.getKey();
+            GyroAngle= key;
+            if(GyroAngle > 45 && GyroAngle < 180)
+            {
+              digitalWrite(KS,HIGH);
+            }
+            ask_safe();
+          }
+          else if(PS==0 && PS1==0 && PS2==0)
+          {
+            ask_safe();
+          }
+        }
+      }
+    } 
+    else
+    {
+      //alert front 4meter
+      Serial.println("Object 4 meter away from FRONT");
+    }
+ }
+ else if (dist1>400 && dist2>400 && dist3>400 && dist8<400)
+ {
+  Serial.println("Object 4 meter away from BACK");
+  distance();
+  if(dist8<300)
+  {
+    Serial.println("Object 3 meter away from BACK");
+    distance();
+    if(dist8<200)
+    {
+      Serial.println("Object 3 meter away from BACK");
+      distance();
+      if(dist8<100)
+        {
+          PS3=digitalRead(sensorpin3);
+          if( PS3==1 ) //accidnet happened
+          {
+            Serial.println("Enter Gyro Angle");
+            char key = keypad.getKey();
+            GyroAngle= key;
+            if(GyroAngle > 45 && GyroAngle < 180)
+            {
+              digitalWrite(KS,HIGH);
+            }
+            ask_safe();
+          }
+          else if(PS3==0)
+          {
+            ask_safe();
+          }
+        }
+    }
+  }
+ }
+}
+void ask_safe()
+{
+  Serial.println("Are you safe?");
+  delay(2000);
+  Serial.println("If yes press reset button!");
+  delay(10000);
+  msg_send(); //send alert
+}
+void msg_send()
+{
+  sgps.listen();
+  while (sgps.available())
+  {
+    int c = sgps.read();
+    if (gps.encode(c))
+    {
+      gps.f_get_position(&gpslat, &gpslon);
+    }
+  }
+  //msg to family memeber
+  sgsm.listen();
+  sgsm.print("\r");
+  delay(1000);
+  sgsm.print("AT+CMGF=1\r");
+  delay(1000);
+  sgsm.print("AT+CMGS=\"+919509140651\"\r"); 
+  delay(1000);
+  sgsm.print("Accident Alert ");
+  sgsm.print("https://www.google.com/maps/?q=");
+  sgsm.print(gpslat, 6);
+  sgsm.print(",");
+  sgsm.print(gpslon, 6);
+  delay(1000);
+  sgsm.write(0x1A);
+  delay(1000);
+  //msg to emergency operator
+  sgsm.listen();
+  sgsm.print("\r");
+  delay(1000);
+  sgsm.print("AT+CMGF=1\r");
+  delay(1000);
+  sgsm.print("AT+CMGS=\"+919509140651\"\r"); 
+  delay(1000);
+  sgsm.print("Accident Alert ");
+  sgsm.print("https://www.google.com/maps/?q=");
+  sgsm.print(gpslat, 6);
+  sgsm.print(",");
+  sgsm.print(gpslon, 6);
+  delay(1000);
+  sgsm.write(0x1A);
+  delay(1000);
+  if(PS==1 || PS1==1 || PS2==1 && PS3==0)
+  {
+    sgsm.listen();
+  sgsm.print("\r");
+  delay(1000);
+  sgsm.print("AT+CMGF=1\r");
+  delay(1000);
+  sgsm.print("AT+CMGS=\"+919509140651\"\r"); 
+  delay(1000);
+  sgsm.print("Collision occured in Front");
+  delay(1000);
+  sgsm.write(0x1A);
+  delay(1000);
+  }
+  else if(PS==0 || PS1==0 || PS2==0 && PS3==1)
+  {
+    sgsm.listen();
+  sgsm.print("\r");
+  delay(1000);
+  sgsm.print("AT+CMGF=1\r");
+  delay(1000);
+  sgsm.print("AT+CMGS=\"+919509140651\"\r"); 
+  delay(1000);
+  sgsm.print("Collision occured in Back");
+  delay(1000);
+  sgsm.write(0x1A);
+  delay(1000);
+  }
+  else if(PS==1 || PS1==1 || PS2==1 && PS3==1)
+  {
+    sgsm.listen();
+  sgsm.print("\r");
+  delay(1000);
+  sgsm.print("AT+CMGF=1\r");
+  delay(1000);
+  sgsm.print("AT+CMGS=\"+919509140651\"\r"); 
+  delay(1000);
+  sgsm.print("Collision occured in Front and Back");
+  delay(1000);
+  sgsm.write(0x1A);
+  delay(1000);
+  }
+  
+}
+void distance()
+{
+  digitalWrite(Trigger1, LOW);
+  digitalWrite(Trigger2, LOW);
+  digitalWrite(Trigger3, LOW);
+  digitalWrite(Trigger8, LOW);
+  delayMicroseconds(2);
+  
+  digitalWrite(Trigger1, HIGH);
+  digitalWrite(Trigger2, HIGH);
+  digitalWrite(Trigger3, HIGH);
+  digitalWrite(Trigger8, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(Trigger1, LOW);
+  digitalWrite(Trigger2, LOW);
+  digitalWrite(Trigger3, LOW);
+  digitalWrite(Trigger8, LOW);
+  
+  duration1 = pulseIn(echo1, HIGH);
+  duration2 = pulseIn(echo2, HIGH);
+  duration3 = pulseIn(echo3, HIGH);
+  duration3 = pulseIn(echo8, HIGH);
+  
+  dist1 = duration1 * 0.034 / 2; //cm
+  dist2 = duration2 * 0.034 / 2; //cm
+  dist3 = duration3 * 0.034 / 2; //cm
+  dist8 = duration8 * 0.034 / 2; //cm
+}
+void check_left()
+{
+  digitalWrite(Trigger4, LOW);
+  delayMicroseconds(2); 
+  digitalWrite(Trigger4, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(Trigger4, LOW);
+  duration4 = pulseIn(echo4, HIGH);
+  dist4 = duration4 * 0.034 / 2; //cm 
+  digitalWrite(Trigger6, LOW);
+  delayMicroseconds(2); 
+  digitalWrite(Trigger6, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(Trigger6, LOW);
+  duration6 = pulseIn(echo6, HIGH);
+  dist6 = duration6 * 0.034 / 2; //cm  
+}
+void check_right()
+{
+  digitalWrite(Trigger5, LOW);
+  delayMicroseconds(2); 
+  digitalWrite(Trigger5, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(Trigger5, LOW);
+  duration5 = pulseIn(echo5, HIGH);
+  dist5 = duration5 * 0.034 / 2; //cm 
+  digitalWrite(Trigger7, LOW);
+  delayMicroseconds(2); 
+  digitalWrite(Trigger7, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(Trigger7, LOW);
+  duration7 = pulseIn(echo4, HIGH);
+  dist7 = duration7 * 0.034 / 2; //cm  
+}
